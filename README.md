@@ -1,29 +1,235 @@
 # Sleep Data Pipeline with Azure Data Factory
 
-Welcome to the Sleep Data Pipeline project! This advanced system processes and analyzes health-related data, such as sleep tracking, to provide insights and recommendations for users. It utilizes Azure Data Factory and related Azure services to manage the data pipeline.
+Welcome to the Sleep Data Pipeline project! This advanced system processes and analyzes health-related data from multiple sources to provide comprehensive insights and personalized recommendations for users. It utilizes Azure Data Factory and related Azure services to manage the data pipeline.
 
 ## Table of Contents
 - [Project Overview](#project-overview)
+- [Data Sources](#data-sources)
 - [Azure Architecture](#azure-architecture)
 - [Project Structure](#project-structure)
 - [Setup and Configuration](#setup-and-configuration)
 - [Usage](#usage)
 - [Example: Sleep Data Analysis](#example-sleep-data-analysis)
 - [Example: Personalized Sleep Recommendations](#example-personalized-sleep-recommendations)
+- [Example: Environmental Impact Analysis](#example-environmental-impact-analysis)
 - [CI/CD with Azure DevOps](#cicd-with-azure-devops)
 - [License](#license)
 
 ## Project Overview
 
-Our Sleep Data Pipeline is designed to handle large-scale data processing for health and wellness applications. It includes data ingestion from various sources, such as wearable devices and mobile apps, processing, analysis, and visualization components to provide users with personalized insights and recommendations.
+Our Sleep Data Pipeline is designed to handle large-scale data processing for health and wellness applications. It includes data ingestion from various sources, such as wearable devices, mobile apps, and environmental data, processing, analysis, and visualization components to provide users with comprehensive, personalized insights and recommendations.
 
 Key features:
 - Integration with popular health and fitness tracking platforms
+- Integration with environmental and health research databases
 - Real-time data ingestion and processing
 - Scalable data processing using Azure Data Factory and Azure Databricks
 - Machine learning models for sleep pattern analysis and personalized recommendations
 - Health trend identification and anomaly detection
 - Integration with Azure Cognitive Services for natural language processing of user feedback
+
+## Data Sources
+
+### Internal Data Sources
+1. **Wearable Devices**
+   - Fitbit Web API
+   - Apple HealthKit API
+   - Samsung Health API
+   - Oura Ring Cloud API
+
+2. **Mobile Apps**
+   - Sleep Cycle API
+   - Sleep as Android API
+
+### External Data Sources
+1. **Environmental Data**
+   - **OpenWeatherMap API**: Weather conditions affecting sleep
+     - API Documentation: [OpenWeatherMap API](https://openweathermap.org/api)
+     - Data: Temperature, humidity, air pressure
+     - Use for: Analyzing environmental impacts on sleep quality
+
+2. **Air Quality Data**
+   - **EPA AirNow API**: Air quality measurements
+     - API Documentation: [AirNow API](https://docs.airnowapi.org/)
+     - Data: PM2.5, ozone levels, air quality index
+     - Use for: Correlating air quality with sleep patterns
+
+3. **Chronobiology Research**
+   - **NASA POWER API**: Solar and meteorological data
+     - API Documentation: [NASA POWER API](https://power.larc.nasa.gov/docs/v1/)
+     - Data: Day length, solar radiation
+     - Use for: Analyzing circadian rhythm impacts
+
+4. **Nutrition Data**
+   - **USDA FoodData Central API**: Nutritional information
+     - API Documentation: [FoodData Central API](https://fdc.nal.usda.gov/api-guide.html)
+     - Data: Caffeine content, nutrients affecting sleep
+     - Use for: Analyzing dietary impacts on sleep
+
+5. **Clinical Research**
+   - **NIH Sleep Research Database**: Sleep disorder research
+     - Data Access: [NSRR](https://sleepdata.org/api)
+     - Content: Sleep disorder prevalence, treatment outcomes
+     - Use for: Enriching recommendations with clinical insights
+
+### Data Integration Examples
+
+```python
+# Example: Integrating environmental data with sleep patterns
+from openweathermap_api import OpenWeatherMapClient
+from azure.storage.blob import BlobServiceClient
+
+def analyze_environmental_impact():
+    weather_client = OpenWeatherMapClient(api_key=os.environ["OPENWEATHER_API_KEY"])
+    
+    # Read sleep data
+    sleep_df = spark.read.parquet("abfss://processed-data@yourdatalake.dfs.core.windows.net/sleep_data/")
+    
+    # For each user's location, fetch weather data
+    weather_data = []
+    for location in sleep_df.select("user_location").distinct().collect():
+        daily_weather = weather_client.get_historical_weather(
+            location=location.user_location,
+            start_date="2024-01-01",
+            end_date="2024-03-31"
+        )
+        weather_data.extend(daily_weather)
+    
+    # Convert to Spark DataFrame
+    weather_df = spark.createDataFrame(weather_data)
+    
+    # Join sleep and weather data
+    enriched_sleep_data = sleep_df.join(
+        weather_df,
+        (sleep_df.user_location == weather_df.location) &
+        (sleep_df.sleep_date == weather_df.date)
+    )
+    
+    # Analyze correlation between weather and sleep quality
+    correlation_analysis = enriched_sleep_data.stat.corr("sleep_quality", "temperature")
+    humidity_impact = enriched_sleep_data.stat.corr("sleep_quality", "humidity")
+    
+    return correlation_analysis, humidity_impact
+
+# Example: Integrating nutritional data for sleep impact analysis
+def analyze_nutrition_impact():
+    usda_client = USDAFoodDataClient(api_key=os.environ["USDA_API_KEY"])
+    
+    # Read user dietary logs
+    diet_df = spark.read.parquet("abfss://processed-data@yourdatalake.dfs.core.windows.net/dietary_logs/")
+    
+    # Enrich with nutritional data
+    enriched_diet_data = []
+    for food in diet_df.select("food_item").distinct().collect():
+        nutrition_info = usda_client.get_nutrients(food.food_item)
+        enriched_diet_data.append({
+            "food_item": food.food_item,
+            "caffeine_content": nutrition_info.get("caffeine", 0),
+            "magnesium_content": nutrition_info.get("magnesium", 0)
+        })
+    
+    # Convert to Spark DataFrame and join with diet logs
+    nutrition_df = spark.createDataFrame(enriched_diet_data)
+    enriched_diet_df = diet_df.join(nutrition_df, "food_item")
+    
+    # Join with sleep data
+    sleep_nutrition_df = enriched_diet_df.join(
+        spark.read.parquet("abfss://processed-data@yourdatalake.dfs.core.windows.net/sleep_data/"),
+        ["user_id", "date"]
+    )
+    
+    # Analyze impact of caffeine and magnesium on sleep
+    return sleep_nutrition_df.groupBy("user_id").agg(
+        avg("caffeine_content").alias("avg_daily_caffeine"),
+        avg("magnesium_content").alias("avg_daily_magnesium"),
+        avg("sleep_quality").alias("avg_sleep_quality")
+    )
+```
+
+[Original sections remain: Azure Architecture, Project Structure, Setup and Configuration, Usage]
+
+## Example: Environmental Impact Analysis
+
+Here's an example of how to analyze the impact of environmental factors on sleep quality:
+
+```python
+# In Azure Databricks notebook
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, avg, corr
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.regression import RandomForestRegressor
+
+def analyze_environment_sleep_correlation():
+    # Initialize Spark session
+    spark = SparkSession.builder.appName("EnvironmentalSleepAnalysis").getOrCreate()
+
+    # Read enriched sleep data (joined with environmental data)
+    enriched_sleep_data = spark.read.parquet("abfss://processed-data@yourdatalake.dfs.core.windows.net/enriched_sleep_data/")
+
+    # Calculate correlations between environmental factors and sleep quality
+    correlations = enriched_sleep_data.select(
+        corr("temperature", "sleep_quality").alias("temp_correlation"),
+        corr("humidity", "sleep_quality").alias("humidity_correlation"),
+        corr("air_quality_index", "sleep_quality").alias("aqi_correlation"),
+        corr("day_length", "sleep_quality").alias("daylight_correlation")
+    ).collect()[0]
+
+    # Train a model to predict sleep quality based on environmental factors
+    feature_cols = ["temperature", "humidity", "air_quality_index", "day_length"]
+    assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
+    model_data = assembler.transform(enriched_sleep_data)
+
+    # Split data into training and testing sets
+    train_data, test_data = model_data.randomSplit([0.8, 0.2])
+
+    # Train the model
+    rf_model = RandomForestRegressor(labelCol="sleep_quality", featuresCol="features")
+    model = rf_model.fit(train_data)
+
+    # Generate predictions and recommendations
+    predictions = model.transform(test_data)
+    
+    # Create personalized environmental recommendations
+    recommendations = generate_environmental_recommendations(predictions)
+    
+    return correlations, recommendations
+
+def generate_environmental_recommendations(predictions):
+    # Logic to generate personalized recommendations based on environmental factors
+    return predictions.select(
+        "user_id",
+        "temperature",
+        "humidity",
+        "air_quality_index",
+        "prediction"
+    ).withColumn(
+        "recommendation",
+        when(col("temperature") > 75, "Consider lowering room temperature for better sleep")
+        .when(col("humidity") > 60, "Use a dehumidifier to improve sleep conditions")
+        .when(col("air_quality_index") > 100, "Consider using an air purifier")
+        .otherwise("Environmental conditions are optimal for sleep")
+    )
+
+# Execute the analysis
+correlations, recommendations = analyze_environment_sleep_correlation()
+
+# Save recommendations to Azure SQL Database
+recommendations.write \
+    .format("jdbc") \
+    .option("url", "jdbc:sqlserver://yourserver.database.windows.net:1433;database=yourdatabase") \
+    .option("dbtable", "environmental_sleep_recommendations") \
+    .option("user", "yourusername") \
+    .option("password", "yourpassword") \
+    .mode("overwrite") \
+    .save()
+```
+
+This example demonstrates how to:
+1. Analyze correlations between environmental factors and sleep quality
+2. Train a machine learning model to predict sleep quality based on environmental data
+3. Generate personalized recommendations based on environmental conditions
+4. Save the recommendations for use in user-facing applications
 
 ## Azure Architecture
 

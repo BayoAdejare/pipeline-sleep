@@ -56,7 +56,7 @@ Key features:
 
 3. **Chronobiology Research**
    - **NASA POWER API**: Solar and meteorological data
-     - API Documentation: [NASA POWER API](https://power.larc.nasa.gov/docs/v1/)
+     - API Documentation: [NASA POWER API](https://power.larc.nasa.gov/docs/services/api/)
      - Data: Day length, solar radiation
      - Use for: Analyzing circadian rhythm impacts
 
@@ -68,7 +68,7 @@ Key features:
 
 5. **Clinical Research**
    - **NIH Sleep Research Database**: Sleep disorder research
-     - Data Access: [NSRR](https://sleepdata.org/api)
+     - Data Access: [NSRR](https://sleepdata.org/datasets)
      - Content: Sleep disorder prevalence, treatment outcomes
      - Use for: Enriching recommendations with clinical insights
 
@@ -145,8 +145,6 @@ def analyze_nutrition_impact():
         avg("sleep_quality").alias("avg_sleep_quality")
     )
 ```
-
-[Original sections remain: Azure Architecture, Project Structure, Setup and Configuration, Usage]
 
 ## Example: Environmental Impact Analysis
 
